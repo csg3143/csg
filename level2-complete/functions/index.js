@@ -1,115 +1,70 @@
-// Copyright 2018, Google, Inc.
-// Licensed under the Apache License, Version 2.0 (the 'License');
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//  http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an 'AS IS' BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
-'use strict';
-
-// Import the Dialogflow module and response creation dependencies
-// from the Actions on Google client library.
-const {
-  dialogflow,
-  BasicCard,
-  Permission,
-  Suggestions,
-} = require('actions-on-google');
-
-// Import the firebase-functions package for deployment.
 const functions = require('firebase-functions');
+const {WebhookClient} = require('dialogflow-fulfillment');
+const {Card, Suggestion} = require('dialogflow-fulfillment');
 
-// Instantiate the Dialogflow client.
-const app = dialogflow({debug: true});
-
-// Define a mapping of fake color strings to basic card objects.
-const colorMap = {
-  'indigo taco': {
-    title: 'Indigo Taco',
-    text: 'Indigo Taco is a subtle bluish tone.',
-    image: {
-      url: 'https://storage.googleapis.com/material-design/publish/material_v_12/assets/0BxFyKV4eeNjDN1JRbF9ZMHZsa1k/style-color-uiapplication-palette1.png',
-      accessibilityText: 'Indigo Taco Color',
-    },
-    display: 'WHITE',
-  },
-  'pink unicorn': {
-    title: 'Pink Unicorn',
-    text: 'Pink Unicorn is an imaginative reddish hue.',
-    image: {
-      url: 'https://storage.googleapis.com/material-design/publish/material_v_12/assets/0BxFyKV4eeNjDbFVfTXpoaEE5Vzg/style-color-uiapplication-palette2.png',
-      accessibilityText: 'Pink Unicorn Color',
-    },
-    display: 'WHITE',
-  },
-  'blue grey coffee': {
-    title: 'Blue Grey Coffee',
-    text: 'Calling out to rainy days, Blue Grey Coffee brings to mind your favorite coffee shop.',
-    image: {
-      url: 'https://storage.googleapis.com/material-design/publish/material_v_12/assets/0BxFyKV4eeNjDZUdpeURtaTUwLUk/style-color-colorsystem-gray-secondary-161116.png',
-      accessibilityText: 'Blue Grey Coffee Color',
-    },
-    display: 'WHITE',
-  },
-};
-
-// Handle the Dialogflow intent named 'Default Welcome Intent'.
-app.intent('Default Welcome Intent', (conv) => {
-  // Asks the user's permission to know their name, for personalization.
-  conv.ask(new Permission({
-    context: 'Hi there, to get to know you better',
-    permissions: 'NAME',
-  }));
+admin.initializeApp({
+    credential: admin.credential.cert(serviceAccount),
+    databaseURL: "https://udemy-demo-assistant-7912e.firebaseio.com"
 });
 
-// Handle the Dialogflow intent named 'actions_intent_PERMISSION'. If user
-// agreed to PERMISSION prompt, then boolean value 'permissionGranted' is true.
-app.intent('actions_intent_PERMISSION', (conv, params, permissionGranted) => {
-  if (!permissionGranted) {
-    // If the user denied our request, go ahead with the conversation.
-    conv.ask(`OK, no worries. What's your favorite color?`);
-    conv.ask(new Suggestions('Blue', 'Red', 'Green'));
-  } else {
-    // If the user accepted our request, store their name in
-    // the 'conv.data' object for the duration of the conversation.
-    conv.data.userName = conv.user.name.display;
-    conv.ask(`Thanks, ${conv.data.userName}. What's your favorite color?`);
-    conv.ask(new Suggestions('Blue', 'Red', 'Green'));
+exports.dialogflowFirebaseFulfillment = functions.https.onRequest((request, response) => {
+  const agent = new WebhookClient({ request, response });
+  console.log('Dialogflow Request headers: ' + JSON.stringify(request.headers));
+  console.log('Dialogflow Request body: ' + JSON.stringify(request.body));
+  console.log('Dialogflow Intent: ' + agent.intent);
+  console.log('Dialogflow Parameters: ' + agent.parameters);
+
+  function welcome(agent) {
+    agent.add(`Welcome to my agent!`);
   }
-});
 
-// Handle the Dialogflow intent named 'favorite color'.
-// The intent collects a parameter named 'color'.
-app.intent('favorite color', (conv, {color}) => {
-  const luckyNumber = color.length;
-  const audioSound = 'https://actions.google.com/sounds/v1/cartoon/clang_and_wobble.ogg';
-  if (conv.data.userName) {
-    // If we collected user name previously, address them by name and use SSML
-    // to embed an audio snippet in the response.
-    conv.ask(`<speak>${conv.data.userName}, your lucky number is ` +
-      `${luckyNumber}.<audio src="${audioSound}"></audio> ` +
-      `Would you like to hear some fake colors?</speak>`);
-    conv.ask(new Suggestions('Yes', 'No'));
-  } else {
-    conv.ask(`<speak>Your lucky number is ${luckyNumber}.` +
-      `<audio src="${audioSound}"></audio> ` +
-      `Would you like to hear some fake colors?</speak>`);
-    conv.ask(new Suggestions('Yes', 'No'));
+  function fallback(agent) {
+    agent.add(`I didn't understand`);
+    agent.add(`I'm sorry, can you try again?`);
+}
+
+  function addition(agent) {
+    const z=agent.parameters['x']+agent.parameters['y']
+    agent.add('answer is '+z);
+    // save the vote to a database
   }
-});
 
-// Handle the Dialogflow intent named 'favorite fake color'.
-// The intent collects a parameter named 'fakeColor'.
-app.intent('favorite fake color', (conv, {fakeColor}) => {
-  // Present user with the corresponding basic card and end the conversation.
-  conv.close(`Here's the color`, new BasicCard(colorMap[fakeColor]));
-});
+  // // Uncomment and edit to make your own intent handler
+   // uncomment `intentMap.set('your intent name here', yourFunctionHandler);`
+//   // below to get this function to be run when a Dialogflow intent is matched
+//   function yourFunctionHandler(agent) {
+//      agent.add(`This message is from Dialogflow's Cloud Functions for Firebase editor!`);
+//      agent.add(new Card({
+//          title: `Title: this is a card title`,
+//          imageUrl: 'https://developers.google.com/actions/images/badges/XPM_BADGING_GoogleAssistant_VER.png',
+//          text: `This is the body text of a card.  You can even use line\n  breaks and emoji! 💁`,
+//          buttonText: 'This is a button',
+//          buttonUrl: 'https://assistant.google.com/'
+//       })
+//      );
+//      agent.add(new Suggestion(`Quick Reply`));
+//      agent.add(new Suggestion(`Suggestion`));
+//      agent.setContext({ name: 'weather', lifespan: 2, parameters: { city: 'Rome' }});
+//   }
 
-// Set the DialogflowApp object to handle the HTTPS POST request.
-exports.dialogflowFirebaseFulfillment = functions.https.onRequest(app);
+//   // Uncomment and edit to make your own Google Assistant intent handler
+//   // uncomment `intentMap.set('your intent name here', googleAssistantHandler);`
+//   // below to get this function to be run when a Dialogflow intent is matched
+//   function googleAssistantHandler(agent) {
+//      let conv = agent.conv(); // Get Actions on Google library conv instance
+//      conv.ask('Hello from the Actions on Google client library!') // Use Actions on Google library
+//      agent.add(conv); // Add Actions on Google library responses to your agent's response
+//   }
+   // See https://github.com/dialogflow/dialogflow-fulfillment-nodejs/tree/master/samples/actions-on-google
+   // for a complete Dialogflow fulfillment library Actions on Google client library v2 integration sample
+
+//   Run the proper function handler based on the matched Dialogflow intent name
+  let intentMap = new Map();
+  intentMap.set('Default Welcome Intent', welcome);
+  intentMap.set('Default Fallback Intent', fallback);
+  intentMap.set('Default addition Intent', addition);
+
+//   intentMap.set('your intent name here', yourFunctionHandler);
+//   intentMap.set('your intent name here', googleAssistantHandler);
+  agent.handleRequest(intentMap);
+});
